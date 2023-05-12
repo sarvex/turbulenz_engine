@@ -12,10 +12,7 @@ from shutil import rmtree, copy, Error as ShError
 
 SYSNAME = platform.system()
 if SYSNAME == 'Linux':
-    if platform.machine() == 'x86_64':
-        TURBULENZOS = 'linux64'
-    else:
-        TURBULENZOS = 'linux32'
+    TURBULENZOS = 'linux64' if platform.machine() == 'x86_64' else 'linux32'
 elif SYSNAME == 'Windows':
     TURBULENZOS = 'win32'
 elif SYSNAME == 'Darwin':
@@ -23,13 +20,13 @@ elif SYSNAME == 'Darwin':
 else:
     echo('unknown os')
     exit(1)
-PYTHON = 'python%s.%s' % (sys.version_info[0], sys.version_info[1])
+PYTHON = f'python{sys.version_info[0]}.{sys.version_info[1]}'
 ENV = 'env'
 TURBULENZROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 # Required to get the git commands working on Windows
-if not 'HOME' in os.environ:
-    os.environ['HOME'] = '%s%s' % (os.environ['HOMEDRIVE'], os.environ['HOMEPATH'])
+if 'HOME' not in os.environ:
+    os.environ['HOME'] = f"{os.environ['HOMEDRIVE']}{os.environ['HOMEPATH']}"
 
 #######################################################################################################################
 
@@ -37,7 +34,7 @@ def echo(message=''):
     print message
 
 def log(message):
-    echo(' >> ' + message)
+    echo(f' >> {message}')
 
 COLORED_OUTPUT = sys.stdout.isatty() and (SYSNAME != 'Windows' or 'ANSICON' in os.environ)
 
@@ -45,28 +42,28 @@ def error(message):
     if COLORED_OUTPUT:
         log('\033[1m\033[31m[ERROR]\033[0m   - %s' % message)
     else:
-        log('[ERROR]   - %s' % message)
+        log(f'[ERROR]   - {message}')
 
 # pylint: disable=C0103
 def ok(message):
     if COLORED_OUTPUT:
         log('\033[32m[OK]\033[0m      - %s' % message)
     else:
-        log('[OK]      - %s' % message)
+        log(f'[OK]      - {message}')
 # pylint: enable=C0103
 
 def warning(message):
     if COLORED_OUTPUT:
         log('\033[1m\033[33m[WARNING]\033[0m - %s' % message)
     else:
-        log('[WARNING] - %s' % message)
+        log(f'[WARNING] - {message}')
 
 #######################################################################################################################
 
 # pylint: disable=C0103
 def cp(src, dst, verbose=True):
     if verbose:
-        echo('Copying: %s -> %s' % (os.path.basename(src), os.path.basename(dst)))
+        echo(f'Copying: {os.path.basename(src)} -> {os.path.basename(dst)}')
     try:
         copy(src, dst)
     except (ShError, IOError) as e:
@@ -76,7 +73,7 @@ def cp(src, dst, verbose=True):
 # pylint: disable=C0103
 def rm(filename, verbose=True):
     if verbose:
-        echo('Removing: %s' % filename)
+        echo(f'Removing: {filename}')
     try:
         os.remove(filename)
     except OSError as _:
@@ -85,13 +82,11 @@ def rm(filename, verbose=True):
 
 def mkdir(path, verbose=True):
     if verbose:
-        echo('Creating: %s' % path)
+        echo(f'Creating: {path}')
     try:
         os.makedirs(path)
     except OSError as exc:
-        if exc.errno == errno.EEXIST:
-            pass
-        else:
+        if exc.errno != errno.EEXIST:
             raise
 
 def rmdir(path, verbose=True):
@@ -104,7 +99,7 @@ def rmdir(path, verbose=True):
             raise
 
     if verbose:
-        echo('Removing: %s' % path)
+        echo(f'Removing: {path}')
     try:
         rmtree(path, onerror=_handle_remove_readonly)
     except OSError:
@@ -135,31 +130,42 @@ def sh(command, cwd=None, env=None, verbose=True, console=False, ignore=False, s
         command_string = command
 
     if verbose:
-        echo('Executing: %s' % command_string)
+        echo(f'Executing: {command_string}')
 
-    if wait:
-        if console:
-            process = Popen(command_list, stderr=STDOUT, cwd=cwd, shell=shell, env=env)
-        else:
-            process = Popen(command_list, stdout=PIPE, stderr=STDOUT, cwd=cwd, shell=shell, env=env)
-
-        output, _ = process.communicate()
-        output = str(output)
-        retcode = process.poll()
-        if retcode:
-            if ignore is False:
-                raise CalledProcessError(retcode, command_list, output=output)
-
-        if output is not None:
-            output = output.rstrip()
-
-        return output
+    if not wait:
+        return (
+            Popen(
+                command_list,
+                creationflags=0x00000008,
+                cwd=cwd,
+                shell=shell,
+                env=env,
+            )
+            if SYSNAME == 'Windows'
+            else Popen(
+                command_list,
+                stdout=PIPE,
+                stderr=STDOUT,
+                cwd=cwd,
+                shell=shell,
+                env=env,
+            )
+        )
+    if console:
+        process = Popen(command_list, stderr=STDOUT, cwd=cwd, shell=shell, env=env)
     else:
-        if SYSNAME == 'Windows':
-            DETACHED_PROCESS = 0x00000008
-            return Popen(command_list, creationflags=DETACHED_PROCESS, cwd=cwd, shell=shell, env=env)
-        else:
-            return Popen(command_list, stdout=PIPE, stderr=STDOUT, cwd=cwd, shell=shell, env=env)
+        process = Popen(command_list, stdout=PIPE, stderr=STDOUT, cwd=cwd, shell=shell, env=env)
+
+    output, _ = process.communicate()
+    output = str(output)
+    if retcode := process.poll():
+        if ignore is False:
+            raise CalledProcessError(retcode, command_list, output=output)
+
+    if output is not None:
+        output = output.rstrip()
+
+    return output
 # pylint: enable=C0103
 
 #######################################################################################################################
@@ -181,7 +187,8 @@ def command_requires_env(fn):
             return fn(*args, **kwargs)
     else:
         def new(*args, **kwargs):
-            error('Virtualenv not activated, required for: %s' % sys.argv[1])
+            error(f'Virtualenv not activated, required for: {sys.argv[1]}')
+
     return new
 
 #######################################################################################################################
@@ -195,17 +202,14 @@ def check_documentation_links(build_path):
         for f in filenames:
             if os.path.splitext(f)[1] == '.html':
                 file_path = os.path.join(dirpath, f)
-                html_file = open(file_path, 'r')
-                html = html_file.read()
+                with open(file_path, 'r') as html_file:
+                    html = html_file.read()
 
-                for regex in bad_link_regex:
-                    match = regex.search(html)
-                    if match:
-                        result += 1
-                        warning(file_path)
-                        error('Broken or malformed link with contents "%s"' % match.group(0))
-
-                html_file.close()
+                    for regex in bad_link_regex:
+                        if match := regex.search(html):
+                            result += 1
+                            warning(file_path)
+                            error(f'Broken or malformed link with contents "{match.group(0)}"')
 
     if result > 0:
         error('%d broken or malformed link%s' % (result, 's' if result > 1 else ''))
@@ -306,7 +310,7 @@ if platform.system() == "Windows":
         # pylint: enable=F0401
 
         _, version, _ = find_devenv()
-        if version == None:
+        if version is None:
             raise EnvironmentError('Failed to find any Visual Studio installed')
         versions_map = {
             '2008': 9.0,

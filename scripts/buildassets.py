@@ -89,7 +89,7 @@ class Source(object):
             if path_exists(self.asset_path):
                 break
         else:
-            raise IOError('Source asset path not found for %s' % self.path)
+            raise IOError(f'Source asset path not found for {self.path}')
         if old_hash:
             self.hash = old_hash
             self.hash_checked = False
@@ -101,14 +101,12 @@ class Source(object):
         self.built = False
 
     def has_changed(self):
-        if self.hash_checked:
-            return self.changed
-        else:
+        if not self.hash_checked:
             new_hash = self.calculate_hash()
             self.changed = (new_hash != self.hash)
             self.hash = new_hash
             self.hash_checked = True
-            return self.changed
+        return self.changed
 
     def calculate_hash(self):
         return get_file_hash(self.asset_path)
@@ -116,10 +114,10 @@ class Source(object):
 class SourceList(object):
     def __init__(self, source_hashes, assets_paths):
         self.assets_paths = assets_paths
-        source_list = {}
-        for (path, file_hash) in source_hashes.iteritems():
-            source_list[path] = Source(path, assets_paths, file_hash)
-
+        source_list = {
+            path: Source(path, assets_paths, file_hash)
+            for path, file_hash in source_hashes.iteritems()
+        }
         self.source_list = source_list
 
     def get_source(self, path):
@@ -129,7 +127,7 @@ class SourceList(object):
         return self.source_list[path]
 
     def get_hashes(self):
-        return dict((k, v.hash) for (k, v) in self.source_list.iteritems())
+        return {k: v.hash for (k, v) in self.source_list.iteritems()}
 
 class Tool(object):
     def __init__(self, name, path):
@@ -157,7 +155,7 @@ class Tool(object):
 
     def has_changed(self):
         if self.changed is None:
-            raise ValueError('Tool %s has not called check_version' % self.name)
+            raise ValueError(f'Tool {self.name} has not called check_version')
         else:
             return self.changed
 
@@ -299,10 +297,7 @@ class Tools(object):
         exe = ''
         system_name = system()
         if system_name == 'Linux':
-            if 'x86_64' == machine():
-                turbulenz_os = 'linux64'
-            else:
-                turbulenz_os = 'linux32'
+            turbulenz_os = 'linux64' if machine() == 'x86_64' else 'linux32'
         elif system_name == 'Windows':
             turbulenz_os = 'win32'
             # if 'x86' == machine():
@@ -325,7 +320,9 @@ class Tools(object):
                 default_convert_path = 'convert'
             imagemagick_convert_path = os_getenv('TURBULENZ_IMAGEMAGICK_CONVERT', default_convert_path)
 
-        nvtristrip = path_join(root, 'tools', 'bin', turbulenz_os, 'NvTriStripper' + exe)
+        nvtristrip = path_join(
+            root, 'tools', 'bin', turbulenz_os, f'NvTriStripper{exe}'
+        )
 
         copy = CopyTool()
         tga2png = Tga2Json('tga2png', imagemagick_convert_path)
@@ -334,10 +331,10 @@ class Tools(object):
         material2json = PythonTool('material2json', module_name='turbulenz_tools.tools.material2json')
         bmfont2json = PythonTool('bmfont2json', module_name='turbulenz_tools.tools.bmfont2json')
 
-        cgfx2json = Cgfx2JsonTool( \
+        cgfx2json = Cgfx2JsonTool(
             'cgfx2json',
-            path_join(root, 'tools', 'bin', turbulenz_os, 'cgfx2json' + exe),
-            args.cgfx_flag
+            path_join(root, 'tools', 'bin', turbulenz_os, f'cgfx2json{exe}'),
+            args.cgfx_flag,
         )
 
         copy.check_version(build_path, verbose)
@@ -385,7 +382,7 @@ class Tools(object):
         try:
             return self.asset_tool_map[ext]
         except KeyError:
-            error('No tool registered for file extension %s' % ext)
+            error(f'No tool registered for file extension {ext}')
             exit(1)
 
     def get_asset_destination(self, path):
@@ -439,8 +436,14 @@ def check_and_build_asset(asset_info, source_list, tools, build_path, verbose):
 
     source = source_list.get_source(src)
     deps = [source_list.get_source(path) for path in asset_info.deps]
-    if any([dep.has_changed() for dep in deps]) or asset_tool.has_changed() or not path_exists(dst_path) \
-            or asset_tool.check_external_deps(source.asset_path, dst_path, asset_info.args):
+    if (
+        any(dep.has_changed() for dep in deps)
+        or asset_tool.has_changed()
+        or not path_exists(dst_path)
+        or asset_tool.check_external_deps(
+            source.asset_path, dst_path, asset_info.args
+        )
+    ):
         stdout.write('[%s] %s\n' % (asset_tool.name.upper(), src))
         # asset_tool.run(source.asset_path, dst_path, verbose, asset_info.args)
         build_asset(asset_tool,

@@ -44,11 +44,14 @@ def nodejs_get_version(allow_system_node, prefix):
             return str(check_output('node --version', shell=True)).rstrip()
         elif PLATFORM == 'win32':
             node_path = os.path.join(prefix, 'Scripts', 'node')
-            return str(check_output('%s --version' % node_path, shell=True)).rstrip()
+            return str(check_output(f'{node_path} --version', shell=True)).rstrip()
         else:
             node_path = os.path.join(prefix, 'bin', 'node')
-            return str(check_output('test -x %s && %s --version' % (node_path, node_path),
-                                    shell=True)).rstrip()
+            return str(
+                check_output(
+                    f'test -x {node_path} && {node_path} --version', shell=True
+                )
+            ).rstrip()
 
     except CalledProcessError:
         return ''
@@ -57,27 +60,27 @@ def nodejs_get_version(allow_system_node, prefix):
 #
 def nodejs_install_binary_win32(version, filename, prefix):
     if filename is None:
-        tmpfile = '%s/Scripts/_node.exe' % prefix
-        final = '%s/Scripts/node.exe' % prefix
-        url = '%s/%s/node.exe' % (NODEJS_DIST, version)
+        tmpfile = f'{prefix}/Scripts/_node.exe'
+        final = f'{prefix}/Scripts/node.exe'
+        url = f'{NODEJS_DIST}/{version}/node.exe'
         download(url, tmpfile)
         if os.path.exists(final):
             os.unlink(final)
         os.rename(tmpfile, final)
     else:
-        shutil.copyfile(filename, '%s/Scripts/node.exe' % prefix)
+        shutil.copyfile(filename, f'{prefix}/Scripts/node.exe')
 
     with tempfile.NamedTemporaryFile(suffix='.tar.gz') as f:
         tmpfile = f.name
         f.close()
 
         # download the source and extract the npm module
-        basename = 'node-%s' % version
-        srcurl = '%s/%s/%s.tar.gz' % (NODEJS_DIST, version, basename)
+        basename = f'node-{version}'
+        srcurl = f'{NODEJS_DIST}/{version}/{basename}.tar.gz'
         download(srcurl, tmpfile)
 
-        depsprefix = '%s/deps/' % basename
-        npmprefix = '%snpm' % depsprefix
+        depsprefix = f'{basename}/deps/'
+        npmprefix = f'{depsprefix}npm'
         moduledir = os.path.join(prefix, 'Scripts', 'node_modules/')
         with GzipFile(tmpfile, mode='rb') as gzipfile:
             tardata = gzipfile.read()
@@ -91,8 +94,10 @@ def nodejs_install_binary_win32(version, filename, prefix):
                     os.makedirs(os.path.dirname(target))
                 with open(target, 'w') as output:
                     output.write(tarentry.read())
-        shutil.copyfile('%s/Scripts/node_modules/npm/bin/npm.cmd' % prefix,
-                        '%s/Scripts/npm.cmd' % prefix)
+        shutil.copyfile(
+            f'{prefix}/Scripts/node_modules/npm/bin/npm.cmd',
+            f'{prefix}/Scripts/npm.cmd',
+        )
 
 
 #
@@ -148,15 +153,15 @@ def nodejs_install_source_unix(version, prefix):
 ############################################################
 
 def typescript_install(version, prefix):
-    if 'win32' == PLATFORM:
+    if PLATFORM == 'win32':
         npm_path = '%s\\Scripts\\npm.cmd' % prefix
     else:
-        npm_path = '%s/bin/npm' % prefix
+        npm_path = f'{prefix}/bin/npm'
     if version is not None:
-        package_specifier = 'typescript@%s' % version
+        package_specifier = f'typescript@{version}'
     else:
         package_specifier = 'typescript'
-    if 0 != call('%s install -g %s' % (npm_path, package_specifier), shell=True):
+    if call(f'{npm_path} install -g {package_specifier}', shell=True) != 0:
         raise Exception('failed to install typescript via npm')
 
 ############################################################
@@ -219,5 +224,5 @@ def main():
     return 0
 
 
-if '__main__' == __name__:
+if __name__ == '__main__':
     exit(main())

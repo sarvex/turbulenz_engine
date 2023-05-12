@@ -27,15 +27,17 @@ def _d3d11_cgfx2json_flags():
     hlsl5_script = abspath(join('scripts', 'compile_hlsl5_shader.bat'))
     hlsl4_script = abspath(join('scripts', 'compile_hlsl4_shader.bat'))
     return [
-        "--hlsl5", "%s,%s" % ("binary_hlsl5", hlsl5_script),
-        "--hlsl4", "%s,%s" % ("binary_hlsl4", hlsl4_script),
+        "--hlsl5",
+        f"binary_hlsl5,{hlsl5_script}",
+        "--hlsl4",
+        f"binary_hlsl4,{hlsl4_script}",
     ]
 
 def _d3d9_cgfx2json_flags():
     abspath = os.path.abspath
     join = os.path.join
     hlsl3_script = abspath(join('scripts', 'compile_hlsl3_shader.bat'))
-    return [ "--hlsl3", "%s,%s" % ("binary_hlsl3", hlsl3_script) ]
+    return ["--hlsl3", f"binary_hlsl3,{hlsl3_script}"]
 
 ################################################################################
 
@@ -247,26 +249,34 @@ def command_tools():
             vs_version = '12.0'
         if devenv:
             base_cmd = [devenv, '/build', 'Release']
-        elif msbuild:
-            base_cmd = [msbuild, '/t:build', '/p:Configuration=Release',
-                        '/p:Platform=Win32', '/p:VisualStudioVersion=%s' % vs_version]
+        else:
+            base_cmd = [
+                msbuild,
+                '/t:build',
+                '/p:Configuration=Release',
+                '/p:Platform=Win32',
+                f'/p:VisualStudioVersion={vs_version}',
+            ]
 
-        cgfx2json_proj = os.path.join(tools, 'cgfx2json', 'cgfx2json%s' % proj_postfix)
+        cgfx2json_proj = os.path.join(tools, 'cgfx2json', f'cgfx2json{proj_postfix}')
         cmd = base_cmd + [cgfx2json_proj]
         sh(cmd, console=True, shell=True)
-        cp('%s/cgfx2json/Release/cgfx2json.exe' % tools, tools_bin)
-        cp('%s/external/Cg/bin/cg.dll' % TURBULENZROOT, tools_bin)
-        cp('%s/external/Cg/bin/cgGL.dll' % TURBULENZROOT, tools_bin)
+        cp(f'{tools}/cgfx2json/Release/cgfx2json.exe', tools_bin)
+        cp(f'{TURBULENZROOT}/external/Cg/bin/cg.dll', tools_bin)
+        cp(f'{TURBULENZROOT}/external/Cg/bin/cgGL.dll', tools_bin)
 
-        nvtristrip_sln = os.path.join(tools, 'NvTriStrip', 'NvTriStrip%s' % sln_postfix)
+        nvtristrip_sln = os.path.join(tools, 'NvTriStrip', f'NvTriStrip{sln_postfix}')
         cmd = base_cmd + [nvtristrip_sln]
         sh(cmd, console=True, shell=True)
-        cp('%s/NvTriStrip/NvTriStripper/bin/release/NvTriStripper.exe' % tools, tools_bin)
+        cp(
+            f'{tools}/NvTriStrip/NvTriStripper/bin/release/NvTriStripper.exe',
+            tools_bin,
+        )
 
     else:
         sh('make', cwd=tools, console=True)
-        cp('%s/cgfx2json/bin/release/cgfx2json' % tools, tools_bin)
-        cp('%s/NvTriStrip/NvTriStripper/bin/release/NvTriStripper' % tools, tools_bin)
+        cp(f'{tools}/cgfx2json/bin/release/cgfx2json', tools_bin)
+        cp(f'{tools}/NvTriStrip/NvTriStripper/bin/release/NvTriStripper', tools_bin)
 
 
 @command_no_arguments
@@ -295,15 +305,20 @@ def command_tools_clean():
             vs_version = '12.0'
         if devenv:
             base_cmd = [devenv, '/clean', 'Release']
-        elif msbuild:
-            base_cmd = [msbuild, '/t:clean', '/p:Configuration=Release',
-                        '/p:Platform=Win32', '/p:VisualStudioVersion=%s' % vs_version]
+        else:
+            base_cmd = [
+                msbuild,
+                '/t:clean',
+                '/p:Configuration=Release',
+                '/p:Platform=Win32',
+                f'/p:VisualStudioVersion={vs_version}',
+            ]
 
-        cgfx2json_proj = os.path.join(tools, 'cgfx2json', 'cgfx2json%s' % proj_postfix)
+        cgfx2json_proj = os.path.join(tools, 'cgfx2json', f'cgfx2json{proj_postfix}')
         cmd = base_cmd + [cgfx2json_proj]
         sh(cmd, console=True, shell=True)
 
-        nvtristrip_sln = os.path.join(tools, 'NvTriStrip', 'NvTriStrip%s' % sln_postfix)
+        nvtristrip_sln = os.path.join(tools, 'NvTriStrip', f'NvTriStrip{sln_postfix}')
         cmd = base_cmd + [nvtristrip_sln]
         sh(cmd, console=True, shell=True)
     else:
@@ -473,13 +488,21 @@ def command_samples_clean():
 #######################################################################################################################
 
 def _docs_build_command():
-    docs_version_opts = '-D version=%s -D release=%s-dev' % (TURBULENZ_ENGINE_VERSION, TURBULENZ_ENGINE_VERSION)
+    docs_version_opts = f'-D version={TURBULENZ_ENGINE_VERSION} -D release={TURBULENZ_ENGINE_VERSION}-dev'
     docs_src = os.path.join(TURBULENZROOT, 'docs', 'source')
     docs_build = os.path.join(TURBULENZROOT, 'build', 'docs')
-    build_command = 'sphinx-build -b html -d ' + os.path.join(docs_build, 'doctrees') + ' ' + \
-                    docs_version_opts + ' -c ' + docs_src + ' ' + docs_src + \
-                    ' ' + os.path.join(docs_build, 'html')
-    return build_command
+    return (
+        'sphinx-build -b html -d '
+        + os.path.join(docs_build, 'doctrees')
+        + ' '
+        + docs_version_opts
+        + ' -c '
+        + docs_src
+        + ' '
+        + docs_src
+        + ' '
+        + os.path.join(docs_build, 'html')
+    )
 
 @command_requires_env
 def command_docs(args):
@@ -539,7 +562,7 @@ def command_check_docs_links(args):
 def command_check_ts(tsfiles=None):
 
     # Run the basic reference checks by building the jslib
-    if 0 != command_jslib(['--refcheck']):
+    if command_jslib(['--refcheck']) != 0:
         return 1
 
     # Run tslint on all the typescript source
@@ -551,12 +574,10 @@ def command_check_ts(tsfiles=None):
 
     files = []
     for pattern in tsfiles:
-        for f in iglob(pattern):
-            files.append(f)
-
+        files.extend(iter(iglob(pattern)))
     for f in files:
         try:
-            sh('%s %s' % (tslint, f), verbose=False)
+            sh(f'{tslint} {f}', verbose=False)
             ok(f)
         except CalledProcessError as e:
             warning(f)
@@ -568,10 +589,7 @@ def command_check_ts(tsfiles=None):
 @command_with_arguments
 def command_check_py(pyfiles=None):
     def module_glob(pattern):
-        if '*' in pattern or '/' in pattern:
-            return iglob(pattern)
-        else:
-            return [pattern]
+        return iglob(pattern) if '*' in pattern or '/' in pattern else [pattern]
 
     pylint = 'python -m pylint.lint --rcfile=.pylintrc -f text -r n'
     pyfiles = pyfiles or ['*.py', 'scripts/*.py']
@@ -583,7 +601,7 @@ def command_check_py(pyfiles=None):
 
     for f in files:
         try:
-            sh('%s %s' % (pylint, f), verbose=False)
+            sh(f'{pylint} {f}', verbose=False)
             ok(f)
         except CalledProcessError as e:
             warning(f)
@@ -599,7 +617,7 @@ def command_help(commands):
     echo('  %s command [options]\n' % sys.argv[0])
 
     for title, group in commands.iteritems():
-        echo('%s commands:' % title)
+        echo(f'{title} commands:')
         echo((len(title) + 10) * '-')
         for command, (_, help_txt) in iter(sorted(group.iteritems())):
             if len(command) > 24:
@@ -607,7 +625,7 @@ def command_help(commands):
             else:
                 padding = ' ' * (24 - len(command))
 
-            echo('  %s%s%s' % (command, padding, help_txt))
+            echo(f'  {command}{padding}{help_txt}')
         echo()
     return 1
 
